@@ -14,31 +14,30 @@ let
       subst = c: if any (x: x == c) good then c else "-";
     in stringAsChars subst name;
 
-  serviceUnit = account: {
-    name = escapeUnitName "lieer-${account.name}";
+  serviceUnit = syncAccounts: {
+    name = escapeUnitName "lieer-sync";
     value = {
       Unit = {
-        Description = "lieer Gmail synchronization for ${account.name}";
-        ConditionPathExists = "${account.maildir.absPath}/.gmailieer.json";
+        Description = "lieer Gmail synchronization";
+        ConditionPathExists = [ (map (account: "${account.maildir.absPath}/.gmailieer.json") syncAccounts)];
       };
 
       Service = {
         Type = "oneshot";
-        ExecStart = "${pkgs.gmailieer}/bin/gmi sync";
-        WorkingDirectory = account.maildir.absPath;
+        ExecStart = [ (map (account: "${pkgs.bash}/bin/bash -c \"cd ${account.maildir.absPath} && ${pkgs.gmailieer}/bin/gmi sync\"") syncAccounts)];
       };
     };
   };
 
-  timerUnit = account: {
-    name = escapeUnitName "lieer-${account.name}";
+  timerUnit = syncAccounts: {
+    name = escapeUnitName "lieer-sync";
     value = {
       Unit = {
-        Description = "lieer Gmail synchronization for ${account.name}";
+        Description = "lieer Gmail synchronization";
       };
 
       Timer = {
-        OnCalendar = account.lieer.sync.frequency;
+        OnCalendar = "*:0/5";
         RandomizedDelaySec = 30;
       };
 
@@ -56,7 +55,7 @@ in {
 
   config = mkIf cfg.enable {
     programs.lieer.enable = true;
-    systemd.user.services = listToAttrs (map serviceUnit syncAccounts);
-    systemd.user.timers = listToAttrs (map timerUnit syncAccounts);
+    systemd.user.services = listToAttrs [(serviceUnit syncAccounts)];
+    systemd.user.timers = listToAttrs [(timerUnit syncAccounts)];
   };
 }
